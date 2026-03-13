@@ -1,12 +1,15 @@
-# Scan to PDF
+# Docs 2 PDF
 
-Scan or take a photo of documents and convert them to PDF in bulk.
+Upload documents or select a folder and convert them to PDF in bulk.
 
 ## Features
 
 - **Fast Conversion**: Drag and drop images or folders to convert them to PDF.
 - **No Server**: Everything is processed locally in your browser for maximum privacy.
 - **Multilanguage (i18n)**: Interface available in Spanish and English with automatic detection.
+- **Multiformat**: Convert Word, Excel and images files to PDF.
+- **Sort**: Sort files in the desired order.
+- **Bulk Conversion**: Convert multiple files to PDF at once.
 - **Modern Design**: Clean, responsive and easy to use interface.
 
 ## Technologies
@@ -15,6 +18,7 @@ Scan or take a photo of documents and convert them to PDF in bulk.
 - [Tailwind CSS](https://tailwindcss.com/)
 - [jsPDF](https://github.com/parallax/jsPDF)
 - [Lucide Icons](https://lucide.dev/)
+- [LibreOffice](https://www.libreoffice.org/)
 
 ## Local Development
 
