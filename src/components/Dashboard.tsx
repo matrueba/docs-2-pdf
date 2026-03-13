@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { generatePDFFromImages } from "@/lib/pdfGenerator";
+import { generatePDFFromFiles } from "@/lib/pdfGenerator";
 import { UploadCloud, FolderUp, FileImage, Trash2, FileOutput, Loader2, Plus, Download } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
+import { SortableImageCard } from '@/components/SortableImageCard';
 
 export default function Dashboard() {
     const { t } = useLanguage();
-    const [images, setImages] = useState<File[]>([]);
+    const [images, setImages] = useState<{ id: string, file: File }[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const [showNameDialog, setShowNameDialog] = useState(false);
     const [pdfName, setPdfName] = useState("");
@@ -16,13 +19,19 @@ export default function Dashboard() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const folderInputRef = useRef<HTMLInputElement>(null);
 
+    const checkFormat = (file: File) => {
+        const t = file.name.toLowerCase();
+        return file.type === "application/pdf" || t.endsWith(".pdf") || file.type.startsWith("image/") || t.endsWith(".png") || t.endsWith(".jpg") || t.endsWith(".jpeg") || t.endsWith(".docx") || t.endsWith(".xlsx");
+    }
+
     const processFiles = (fileList: FileList | File[]) => {
-        const validFiles = Array.from(fileList).filter(file => file.type === "image/png" || file.name.toLowerCase().endsWith(".png"));
+        const validFiles = Array.from(fileList).filter(file => checkFormat(file));
         validFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
         setImages(prev => {
-            const newFiles = [...prev, ...validFiles];
-            const uniqueFiles = newFiles.filter((file, index, self) =>
-                index === self.findIndex((f) => f.name === file.name && f.size === file.size)
+            const newMapped = validFiles.map(file => ({ id: crypto.randomUUID(), file }));
+            const newFiles = [...prev, ...newMapped];
+            const uniqueFiles = newFiles.filter((item, index, self) =>
+                index === self.findIndex((f) => f.file.name === item.file.name && f.file.size === item.file.size)
             );
             return uniqueFiles;
         });
@@ -42,20 +51,42 @@ export default function Dashboard() {
         if (folderInputRef.current) folderInputRef.current.value = "";
     };
 
-    const removeImage = (indexToRemove: number) => setImages(images.filter((_, index) => index !== indexToRemove));
+    const removeImage = (idToRemove: string) => setImages(images.filter((item) => item.id !== idToRemove));
     const clearAll = () => setImages([]);
 
     const generatePDF = async () => {
         if (images.length === 0) return;
         setIsGenerating(true);
         try {
-            await generatePDFFromImages(images, pdfName || t.filenamePlaceholder);
+            await generatePDFFromFiles(images.map(i => i.file), pdfName || t.filenamePlaceholder);
             setShowNameDialog(false);
         } catch (error) {
             console.error("Error generating PDF:", error);
             alert(t.errorGenerating);
         } finally {
             setIsGenerating(false);
+        }
+    };
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 5,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            setImages((items) => {
+                const oldIndex = items.findIndex((item) => item.id === active.id);
+                const newIndex = items.findIndex((item) => item.id === over.id);
+                return arrayMove(items, oldIndex, newIndex);
+            });
         }
     };
 
@@ -112,8 +143,8 @@ export default function Dashboard() {
                         </button>
                     </div>
 
-                    <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" multiple accept="image/png" />
-                    {/* @ts-ignore */}
+                    <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" multiple accept="image/png, image/jpeg, .docx, .xlsx, application/pdf" />
+                    {/* @ts-expect-error non-standard attribute webkitdirectory */}
                     <input type="file" ref={folderInputRef} onChange={handleFileSelect} className="hidden" webkitdirectory="true" directory="true" multiple />
                 </div>
             </div>
@@ -140,38 +171,34 @@ export default function Dashboard() {
                     </div>
 
                     {/* Image Grid */}
-                    <div className="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-4 gap-4">
-                        {images.map((img, idx) => (
-                            <div key={`${img.name}-${idx}`} className="group relative aspect-square img-card">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                    src={URL.createObjectURL(img)}
-                                    alt={img.name}
-                                    className="w-full h-full object-cover"
-                                    onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 via-slate-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-end p-4">
-                                    <span className="text-xs text-white font-medium truncate w-full text-center mb-3">{img.name}</span>
-                                    <button
-                                        onClick={() => removeImage(idx)}
-                                        className="p-2 bg-white/90 hover:bg-red-500 hover:text-white text-slate-700 rounded-xl transition-all duration-200 shadow-lg transform hover:scale-110"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                                <div className="absolute top-2.5 left-2.5 badge bg-white/95 text-slate-700 shadow-sm">
-                                    {idx + 1}
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext
+                            items={images.map(i => i.id)}
+                            strategy={rectSortingStrategy}
+                        >
+                            <div className="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-4 gap-4">
+                                {images.map((imgItem, idx) => (
+                                    <SortableImageCard
+                                        key={imgItem.id}
+                                        item={imgItem}
+                                        index={idx}
+                                        removeImage={removeImage}
+                                    />
+                                ))}
+                                <div
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="aspect-square rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50/50 transition-all duration-300 cursor-pointer"
+                                >
+                                    <Plus className="w-7 h-7 mb-1.5" />
+                                    <span className="text-sm font-semibold">{t.addBtn}</span>
                                 </div>
                             </div>
-                        ))}
-                        <div
-                            onClick={() => fileInputRef.current?.click()}
-                            className="aspect-square rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50/50 transition-all duration-300 cursor-pointer"
-                        >
-                            <Plus className="w-7 h-7 mb-1.5" />
-                            <span className="text-sm font-semibold">{t.addBtn}</span>
-                        </div>
-                    </div>
+                        </SortableContext>
+                    </DndContext>
                 </div>
             )}
 

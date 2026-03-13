@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Scan to PDF",
-  description: "Scan or take a photo of documents and convert them to PDF in bulk.",
+  title: "Docs to PDF",
+  description: "Upload documents or select a folder and convert them to PDF in bulk.",
 };
 
 import { LanguageProvider } from "@/i18n/LanguageContext";

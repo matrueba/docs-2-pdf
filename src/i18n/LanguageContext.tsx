@@ -16,9 +16,11 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     const [isClient, setIsClient] = useState(false);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsClient(true);
         const storedLang = localStorage.getItem("app_lang") as Language;
         if (storedLang && dictionaries[storedLang]) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setLanguage(storedLang);
         } else {
             const browserLang = navigator.language.startsWith("es") ? "es" : "en";
